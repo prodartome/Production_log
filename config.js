@@ -5,5 +5,5 @@
 //  3. Copy "Project URL" and "anon public" key below
 // ─────────────────────────────────────────────────────────────
 
-const SUPABASE_URL  = 'YOUR_SUPABASE_URL';   // e.g. https://xyzxyz.supabase.co
-const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY'; // starts with eyJ...
+const SUPABASE_URL  = 'https://yevyfervkndeymmbbdpy.supabase.co';   // e.g. https://xyzxyz.supabase.co
+const SUPABASE_KEY  = 'sb_publishable_JhPMLZKGM2GQxyvJonDulA_86Fiqjzb'; // starts with eyJ...
