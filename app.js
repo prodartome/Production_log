@@ -87,6 +87,10 @@ async function bootApp() {
   startClock();
   configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 
+  // Reset phase dropdown
+  const phaseDropdown = document.getElementById('phase-select');
+  if (phaseDropdown) phaseDropdown.innerHTML = '<option value="">— select a product first —</option>';
+
   if (!configured) {
     document.getElementById('config-banner').style.display = 'flex';
     setStatus('not-configured', 'Not configured');
@@ -144,11 +148,18 @@ async function loadProducts() {
 }
 
 async function loadPhasesForProduct(productId) {
-  const container = document.getElementById('phase-pills');
-  container.innerHTML = '<div class="loading-pills">Loading phases…</div>';
+  const dropdown = document.getElementById('phase-select');
+  dropdown.innerHTML = '<option value="">Loading…</option>';
+  dropdown.disabled = true;
   phases = await sb.get('phases', `product_id=eq.${productId}&order=sort_order,name`);
   sel.phase = null;
-  renderPills('phase-pills', phases.map(p => ({ id: p.id, label: p.name })), 'phase');
+  dropdown.disabled = false;
+  if (!phases.length) {
+    dropdown.innerHTML = '<option value="">No phases found</option>';
+    return;
+  }
+  dropdown.innerHTML = '<option value="">— select phase —</option>' +
+    phases.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
 }
 
 async function loadEntries() {
@@ -188,13 +199,20 @@ function selectPill(selKey, id, label, containerId, items) {
   sel[selKey] = id;
   renderPills(containerId, items, selKey);
 
-  // When product selected → load its phases
+  // When product selected → load its phases into dropdown
   if (selKey === 'product') {
     const tag = document.getElementById('phase-product-tag');
     tag.textContent = label;
     sel.phase = null;
+    const dropdown = document.getElementById('phase-select');
+    dropdown.innerHTML = '<option value="">— loading… —</option>';
     loadPhasesForProduct(id);
   }
+}
+
+// Called when phase dropdown changes
+function selectPhaseFromDropdown(phaseId) {
+  sel.phase = phaseId ? parseInt(phaseId) : null;
 }
 
 // ── Quantity ──────────────────────────────────────────────────
