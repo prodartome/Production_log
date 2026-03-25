@@ -87,11 +87,9 @@ async function bootApp() {
   startClock();
   configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 
-  // Reset dropdowns
+  // Reset phase dropdown
   const phaseDropdown = document.getElementById('phase-select');
   if (phaseDropdown) phaseDropdown.innerHTML = '<option value="">— select a product first —</option>';
-  const workerDropdown = document.getElementById('worker-select');
-  if (workerDropdown) workerDropdown.innerHTML = '<option value="">Loading…</option>';
 
   if (!configured) {
     document.getElementById('config-banner').style.display = 'flex';
@@ -139,17 +137,8 @@ function setStatus(state, label) {
 // ── Load data ─────────────────────────────────────────────────
 async function loadWorkers() {
   workers = await sb.get('workers', 'order=name');
-  // Populate worker dropdown
-  const dropdown = document.getElementById('worker-select');
-  if (dropdown) {
-    dropdown.innerHTML = '<option value="">— select worker —</option>' +
-      workers.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-  }
+  renderPills('worker-pills', workers.map(w => ({ id: w.id, label: w.name })), 'worker');
   refreshWorkerFilter();
-}
-
-function selectWorkerFromDropdown(workerId) {
-  sel.worker = workerId ? parseInt(workerId) : null;
 }
 
 async function loadProducts() {
@@ -238,9 +227,6 @@ function adjustQty(delta) {
 async function submitEntry() {
   if (!requireAuth()) return;
   if (!configured) { showToast('Configure Supabase first', true); return; }
-  // Also read worker from dropdown in case sel.worker not set
-  const workerDd = document.getElementById('worker-select');
-  if (workerDd && workerDd.value && !sel.worker) sel.worker = parseInt(workerDd.value);
   if (!sel.worker)  { showToast('Select a worker', true); return; }
   if (!sel.product) { showToast('Select a product', true); return; }
   if (!sel.phase)   { showToast('Select a work phase', true); return; }
