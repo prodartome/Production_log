@@ -1,4 +1,45 @@
 // ─────────────────────────────────────────────────────────────
+//  ProdTrack — Login Gate
+// ─────────────────────────────────────────────────────────────
+
+// Session flag — lives only in memory, cleared when tab closes
+let _authenticated = false;
+
+function doLogin() {
+  const input = document.getElementById('login-input');
+  const error = document.getElementById('login-error');
+  const field = document.querySelector('.login-field');
+
+  if (input.value === APP_PASSWORD) {
+    _authenticated = true;
+    const screen = document.getElementById('login-screen');
+    screen.classList.add('hidden');
+    // Remove from DOM after animation so it can't be inspected easily
+    setTimeout(() => screen.remove(), 400);
+    // Now boot the app
+    bootApp();
+  } else {
+    // Wrong password — shake + show error
+    field.classList.remove('shake');
+    void field.offsetWidth; // reflow to restart animation
+    field.classList.add('shake');
+    error.classList.add('visible');
+    input.value = '';
+    input.focus();
+    setTimeout(() => error.classList.remove('visible'), 2500);
+  }
+}
+
+// Guard: called before any app action that touches data
+function requireAuth() {
+  if (!_authenticated) {
+    location.reload();
+    return false;
+  }
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────
 //  ProdTrack — App Logic
 // ─────────────────────────────────────────────────────────────
 
@@ -42,7 +83,7 @@ let sel = { worker: null, product: null, phase: null };
 let configured = false;
 
 // ── Boot ──────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
+async function bootApp() {
   startClock();
   configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 
@@ -166,6 +207,7 @@ function adjustQty(delta) {
 
 // ── Submit ────────────────────────────────────────────────────
 async function submitEntry() {
+  if (!requireAuth()) return;
   if (!configured) { showToast('Configure Supabase first', true); return; }
   if (!sel.worker)  { showToast('Select a worker', true); return; }
   if (!sel.product) { showToast('Select a product', true); return; }
@@ -437,3 +479,6 @@ function showToast(msg, warn = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 }
+
+// ── Start clock immediately (shows on login screen too) ───────
+window.addEventListener('DOMContentLoaded', () => startClock());
