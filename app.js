@@ -87,9 +87,11 @@ async function bootApp() {
   startClock();
   configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 
-  // Reset phase dropdown
+  // Reset dropdowns
   const phaseDropdown = document.getElementById('phase-select');
   if (phaseDropdown) phaseDropdown.innerHTML = '<option value="">— select a product first —</option>';
+  const workerDropdown = document.getElementById('worker-select');
+  if (workerDropdown) workerDropdown.innerHTML = '<option value="">Loading…</option>';
 
   if (!configured) {
     document.getElementById('config-banner').style.display = 'flex';
@@ -137,8 +139,17 @@ function setStatus(state, label) {
 // ── Load data ─────────────────────────────────────────────────
 async function loadWorkers() {
   workers = await sb.get('workers', 'order=name');
-  renderPills('worker-pills', workers.map(w => ({ id: w.id, label: w.name })), 'worker');
+  // Populate worker dropdown
+  const dropdown = document.getElementById('worker-select');
+  if (dropdown) {
+    dropdown.innerHTML = '<option value="">— select worker —</option>' +
+      workers.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  }
   refreshWorkerFilter();
+}
+
+function selectWorkerFromDropdown(workerId) {
+  sel.worker = workerId ? parseInt(workerId) : null;
 }
 
 async function loadProducts() {
@@ -227,6 +238,9 @@ function adjustQty(delta) {
 async function submitEntry() {
   if (!requireAuth()) return;
   if (!configured) { showToast('Configure Supabase first', true); return; }
+  // Also read worker from dropdown in case sel.worker not set
+  const workerDd = document.getElementById('worker-select');
+  if (workerDd && workerDd.value && !sel.worker) sel.worker = parseInt(workerDd.value);
   if (!sel.worker)  { showToast('Select a worker', true); return; }
   if (!sel.product) { showToast('Select a product', true); return; }
   if (!sel.phase)   { showToast('Select a work phase', true); return; }
@@ -500,3 +514,195 @@ function showToast(msg, warn = false) {
 
 // ── Start clock immediately (shows on login screen too) ───────
 window.addEventListener('DOMContentLoaded', () => startClock());
+
+// ─────────────────────────────────────────────────────────────
+//  Page Navigation
+// ─────────────────────────────────────────────────────────────
+
+function switchPage(pageId, btn) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Deactivate all nav buttons
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  // Show target page
+  document.getElementById('page-' + pageId).classList.add('active');
+  // Activate button
+  if (btn) btn.classList.add('active');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Weekly Planner — image upload/drop
+// ─────────────────────────────────────────────────────────────
+
+function handlePlannerDrop(e) {
+  e.preventDefault();
+  document.getElementById('planner-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) showPlannerImage(file);
+}
+
+function handlePlannerFile(input) {
+  const file = input.files[0];
+  if (file) showPlannerImage(file);
+}
+
+function showPlannerImage(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const area = document.getElementById('planner-image-area');
+    area.innerHTML = `
+      <div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <img src="${e.target.result}" class="planner-img-display" alt="Weekly Plan">
+        <button onclick="clearPlannerImage()" style="position:absolute;top:1rem;right:1rem;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);border-radius:4px;color:#fff;padding:.3rem .7rem;cursor:pointer;font-family:Barlow,sans-serif;font-size:.55rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">✕ Remove</button>
+      </div>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPlannerImage() {
+  document.getElementById('planner-image-area').innerHTML = `
+    <div class="planner-drop-zone" id="planner-drop-zone"
+      ondragover="event.preventDefault(); this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="handlePlannerDrop(event)">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".3"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <p>Drop an image here or click to upload</p>
+      <input type="file" id="planner-file-input" accept="image/*" style="display:none" onchange="handlePlannerFile(this)">
+      <button class="action-btn" style="margin-top:1rem" onclick="document.getElementById('planner-file-input').click()">Choose Image</button>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MRPeasy Stock Integration
+// ─────────────────────────────────────────────────────────────
+
+let stockData = [];
+let stockFiltered = [];
+
+async function loadStock() {
+  const setupEl = document.getElementById('mrpeasy-setup');
+  const tableEl = document.getElementById('stock-table-wrap');
+
+  setupEl.innerHTML = `<div class="loading-state"><div class="spinner"></div>Loading stock from MRPeasy…</div>`;
+
+  try {
+    // Call Supabase Edge Function proxy (credentials stored in Supabase Secrets)
+    const res = await fetch(MRPEASY_PROXY_URL + '?endpoint=stock/inventory', {
+      headers: {
+        'apikey':        SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type':  'application/json',
+      }
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json.error ?? `Proxy error ${res.status}`);
+    }
+
+    stockData = Array.isArray(json) ? json : (json.data || json.items || Object.values(json));
+    stockFiltered = [...stockData];
+
+    renderStockTable(stockFiltered);
+    setupEl.style.display = 'none';
+    tableEl.style.display = 'block';
+    showToast('✓ Loaded ' + stockData.length + ' stock items');
+
+  } catch (err) {
+    setupEl.innerHTML = `
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p style="color:var(--danger);max-width:26rem;text-align:center">${err.message}</p>
+      <button class="submit-btn" style="margin-top:.5rem;padding:.6rem 1.4rem;width:auto" onclick="loadStock()">Retry</button>
+      <p class="mrpeasy-hint">Make sure the Edge Function is deployed and secrets are set</p>`;
+  }
+}
+
+function renderStockTable(items) {
+  const tbody = document.getElementById('stock-tbody');
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">No items found</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => {
+    const onHand    = parseFloat(item.on_hand    ?? item.quantity   ?? item.qty ?? 0);
+    const booked    = parseFloat(item.booked     ?? item.reserved   ?? 0);
+    const available = parseFloat(item.available  ?? (onHand - booked));
+    const expected  = parseFloat(item.expected   ?? item.incoming   ?? 0);
+    const avgCost   = parseFloat(item.avg_cost   ?? item.unit_cost  ?? 0);
+    const totalVal  = parseFloat(item.total_cost ?? item.total_value ?? (onHand * avgCost));
+
+    const qtyClass = available <= 0 ? 'stock-qty-zero' : available < 5 ? 'stock-qty-low' : 'stock-qty-ok';
+
+    return `<tr>
+      <td class="date-cell">${item.item_id ?? item.article_id ?? item.id ?? '—'}</td>
+      <td class="name-cell" style="white-space:normal;max-width:14rem">${item.name ?? item.title ?? item.description ?? '—'}</td>
+      <td>${item.unit ?? item.unit_of_measure ?? '—'}</td>
+      <td>${onHand.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
+      <td class="date-cell">${booked.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
+      <td class="${qtyClass}">${available.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
+      <td class="date-cell">${expected.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
+      <td class="date-cell">${avgCost > 0 ? '€' + avgCost.toFixed(2) : '—'}</td>
+      <td class="qty-cell">${totalVal > 0 ? '€' + totalVal.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterStock(query) {
+  const q = query.toLowerCase();
+  stockFiltered = stockData.filter(item =>
+    (item.name ?? item.title ?? '').toLowerCase().includes(q) ||
+    String(item.item_id ?? item.id ?? '').includes(q)
+  );
+  renderStockTable(stockFiltered);
+}
+
+function exportStockXLSX() {
+  if (!stockFiltered.length) { showToast('No stock data to export', true); return; }
+
+  const rows = [['Item #','Name','Unit','On Hand','Booked','Available','Expected','Avg Cost','Total Value']];
+  stockFiltered.forEach(item => {
+    const onHand  = parseFloat(item.on_hand ?? item.quantity ?? 0);
+    const booked  = parseFloat(item.booked  ?? 0);
+    const avail   = parseFloat(item.available ?? (onHand - booked));
+    const exp     = parseFloat(item.expected ?? 0);
+    const cost    = parseFloat(item.avg_cost ?? 0);
+    const total   = parseFloat(item.total_cost ?? (onHand * cost));
+    rows.push([item.item_id ?? item.id, item.name ?? item.title, item.unit, onHand, booked, avail, exp, cost, total]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:28},{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12}];
+  styleXLSXHeader(ws, 9);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+  XLSX.writeFile(wb, `stock_${new Date().toLocaleDateString('en-GB').replace(/\//g,'-')}.xlsx`);
+  showToast('📥 Stock exported!');
+}
+
+// Restore saved MRPeasy credentials on page switch
+document.addEventListener('DOMContentLoaded', () => {
+  const savedUser = sessionStorage.getItem('mrp_user');
+  const savedKey  = sessionStorage.getItem('mrp_key');
+  if (savedUser) setTimeout(() => {
+    const u = document.getElementById('mrpeasy-user');
+    const k = document.getElementById('mrpeasy-key');
+    if (u) u.value = savedUser;
+    if (k) k.value = savedKey;
+  }, 100);
+});
+
+// Fix toast to always use orange
+const _origShowToast = showToast;
+// Override to use accent for success
+function showToast(msg, warn = false) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.background = warn ? '#e84040' : 'var(--accent)';
+  el.style.color = '#fff';
+  el.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
