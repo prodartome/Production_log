@@ -108,7 +108,7 @@ async function bootApp() {
     showEmptyLog('Could not reach Supabase. Check your config.js credentials.');
     console.error(e);
   }
-});
+}
 
 // ── Clock ─────────────────────────────────────────────────────
 function startClock() {
