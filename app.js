@@ -14,10 +14,11 @@ function doLogin() {
     _authenticated = true;
     const screen = document.getElementById('login-screen');
     screen.classList.add('hidden');
-    // Remove from DOM after animation so it can't be inspected easily
-    setTimeout(() => screen.remove(), 400);
-    // Now boot the app
-    bootApp();
+    // Boot AFTER animation completes so DOM is fully ready
+    setTimeout(() => {
+      screen.remove();
+      bootApp();
+    }, 400);
   } else {
     // Wrong password — shake + show error
     field.classList.remove('shake');
