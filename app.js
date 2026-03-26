@@ -138,17 +138,12 @@ function setStatus(state, label) {
 
 // ── Load data ─────────────────────────────────────────────────
 async function loadWorkers() {
-  // Try active filter first, fall back to all workers if column doesn't exist
-  try {
-    workers = await sb.get('workers', 'order=name&active=is.true');
-    // If result is empty, maybe active column doesn't exist — try without filter
-    if (!workers.length) {
-      const all = await sb.get('workers', 'order=name');
-      if (all.length) workers = all;
-    }
-  } catch(e) {
-    workers = await sb.get('workers', 'order=name');
-  }
+  // Fetch all workers then filter active ones in JS — avoids any RLS/filter issues
+  const all = await sb.get('workers', 'order=name');
+  // Keep only active workers (if active column exists), otherwise show all
+  workers = all.filter(w => w.active === true || w.active === null || w.active === undefined);
+  // If filtering removed everyone, show all
+  if (!workers.length) workers = all;
   const dropdown = document.getElementById('worker-select');
   if (dropdown) {
     dropdown.innerHTML = '<option value="">— select worker —</option>' +
