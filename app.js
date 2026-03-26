@@ -110,6 +110,8 @@ async function bootApp() {
     await Promise.all([loadWorkers(), loadProducts()]);
     await loadEntries();
     setStatus('connected', 'Connected');
+    // Re-populate dropdowns after all data is loaded to ensure DOM is ready
+    setTimeout(repopulateWorkerDropdown, 100);
   } catch (e) {
     setStatus('error', 'Connection failed');
     showEmptyLog('Could not reach Supabase. Check your config.js credentials.');
@@ -153,6 +155,16 @@ async function loadWorkers() {
 
 function selectWorkerFromDropdown(workerId) {
   sel.worker = workerId ? parseInt(workerId) : null;
+}
+
+// Re-populate worker dropdown (called after DOM is guaranteed ready)
+function repopulateWorkerDropdown() {
+  const dropdown = document.getElementById('worker-select');
+  if (!dropdown) return;
+  if (workers && workers.length) {
+    dropdown.innerHTML = '<option value="">— select worker —</option>' +
+      workers.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  }
 }
 
 async function loadProducts() {
