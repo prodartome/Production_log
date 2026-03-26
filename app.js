@@ -138,8 +138,17 @@ function setStatus(state, label) {
 
 // ── Load data ─────────────────────────────────────────────────
 async function loadWorkers() {
-  workers = await sb.get('workers', 'order=name&active=eq.true');
-  // Populate worker dropdown
+  // Try active filter first, fall back to all workers if column doesn't exist
+  try {
+    workers = await sb.get('workers', 'order=name&active=is.true');
+    // If result is empty, maybe active column doesn't exist — try without filter
+    if (!workers.length) {
+      const all = await sb.get('workers', 'order=name');
+      if (all.length) workers = all;
+    }
+  } catch(e) {
+    workers = await sb.get('workers', 'order=name');
+  }
   const dropdown = document.getElementById('worker-select');
   if (dropdown) {
     dropdown.innerHTML = '<option value="">— select worker —</option>' +
