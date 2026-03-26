@@ -97,7 +97,8 @@ async function bootApp() {
     document.getElementById('config-banner').style.display = 'flex';
     setStatus('not-configured', 'Not configured');
     showEmptyLog('Configure Supabase in config.js to get started');
-    renderPills('worker-pills',  [], 'worker');
+    const wdd = document.getElementById('worker-select');
+    if (wdd) wdd.innerHTML = '<option value="">— not configured —</option>';
     renderPills('product-pills', [], 'product');
     return;
   }
@@ -138,11 +139,9 @@ function setStatus(state, label) {
 
 // ── Load data ─────────────────────────────────────────────────
 async function loadWorkers() {
-  // Fetch all workers then filter active ones in JS — avoids any RLS/filter issues
   const all = await sb.get('workers', 'order=name');
-  // Keep only active workers (if active column exists), otherwise show all
-  workers = all.filter(w => w.active === true || w.active === null || w.active === undefined);
-  // If filtering removed everyone, show all
+  // Filter: show workers where active is true OR active field doesn't exist
+  workers = all.filter(w => w.active !== false);
   if (!workers.length) workers = all;
   const dropdown = document.getElementById('worker-select');
   if (dropdown) {
