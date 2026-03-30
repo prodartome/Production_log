@@ -681,35 +681,30 @@ async function loadStock() {
 
 function renderStockTable(items) {
   const tbody = document.getElementById('stock-tbody');
-  if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">No items found</td></tr>`;
+
+  // Filter: only show items where custom_7453 (Active) is not blank/null
+  const filtered = items.filter(item => {
+    const active = item.custom_7453;
+    return active !== null && active !== undefined && active !== '' && active !== 'N/A';
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:2rem">No items found</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = items.map(item => {
-    // MRPeasy field names from /stock/inventory endpoint
-    const onHand    = parseFloat(item.quantity        ?? item.on_hand    ?? 0);
-    const booked    = parseFloat(item.booked          ?? 0);
-    const available = parseFloat(item.available       ?? (onHand - booked));
-    const expected  = parseFloat(item.expected_total  ?? item.expected   ?? 0);
-    const avgCost   = parseFloat(item.avg_cost        ?? 0);
-    const totalVal  = parseFloat(item.total_cost      ?? (onHand * avgCost));
-    const itemCode  = item.product_code ?? item.article_id ?? item.item_id ?? '—';
-    const itemName  = item.product_title ?? item.name ?? item.title ?? '—';
-    const unit      = item.unit ?? '—';
-
-    const qtyClass = available <= 0 ? 'stock-qty-zero' : available < 5 ? 'stock-qty-low' : 'stock-qty-ok';
+  tbody.innerHTML = filtered.map(item => {
+    const available = parseFloat(item.available ?? 0);
+    const vendor    = item.purchase_terms?.[0]?.vendor_title ?? '—';
+    const vendorPn  = item.purchase_terms?.[0]?.vendor_product_code ?? '—';
+    const qtyClass  = available <= 0 ? 'stock-qty-zero' : available < 5 ? 'stock-qty-low' : 'stock-qty-ok';
 
     return `<tr>
-      <td class="date-cell">${itemCode}</td>
-      <td class="name-cell" style="white-space:normal;max-width:14rem">${itemName}</td>
-      <td>${unit}</td>
-      <td>${onHand.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
-      <td class="date-cell">${booked.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
+      <td class="date-cell">${item.code ?? '—'}</td>
+      <td class="name-cell" style="white-space:normal;max-width:18rem">${item.title ?? '—'}</td>
       <td class="${qtyClass}">${available.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
-      <td class="date-cell">${expected.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
-      <td class="date-cell">${avgCost > 0 ? '€' + avgCost.toFixed(2) : '—'}</td>
-      <td class="qty-cell">${totalVal > 0 ? '€' + totalVal.toLocaleString('en-GB', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'}</td>
+      <td class="date-cell" style="white-space:normal;max-width:14rem">${vendor}</td>
+      <td class="date-cell">${vendorPn}</td>
     </tr>`;
   }).join('');
 }
@@ -717,9 +712,9 @@ function renderStockTable(items) {
 function filterStock(query) {
   const q = query.toLowerCase();
   stockFiltered = stockData.filter(item =>
-    (item.product_title ?? item.name ?? '').toLowerCase().includes(q) ||
-    (item.product_code ?? '').toLowerCase().includes(q) ||
-    String(item.article_id ?? item.id ?? '').includes(q)
+    (item.title ?? '').toLowerCase().includes(q) ||
+    (item.code ?? '').toLowerCase().includes(q) ||
+    (item.purchase_terms?.[0]?.vendor_product_code ?? '').toLowerCase().includes(q)
   );
   renderStockTable(stockFiltered);
 }
