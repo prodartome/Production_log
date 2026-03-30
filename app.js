@@ -434,13 +434,14 @@ function exportXLSX() {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1 — Full log
-  const logRows = [['#', 'Worker', 'Product', 'Phase', 'Quantity', 'Date', 'Time']];
+  const logRows = [['#', 'Worker', 'Product', 'Part No', 'Phase', 'Quantity', 'Date', 'Time']];
   entries.forEach((e, i) => {
     const dt = new Date(e.created_at);
     logRows.push([
       i + 1,
       e.workers?.name ?? '',
       e.products?.name ?? '',
+      e.phases?.mrpe_partno ?? '',
       e.phases?.name ?? '',
       e.quantity,
       dt.toLocaleDateString('en-GB'),
@@ -448,25 +449,25 @@ function exportXLSX() {
     ]);
   });
   const ws1 = XLSX.utils.aoa_to_sheet(logRows);
-  ws1['!cols'] = [{wch:5},{wch:14},{wch:16},{wch:18},{wch:10},{wch:12},{wch:10}];
+  ws1['!cols'] = [{wch:5},{wch:14},{wch:16},{wch:14},{wch:18},{wch:10},{wch:12},{wch:10}];
   styleXLSXHeader(ws1, logRows[0].length);
   XLSX.utils.book_append_sheet(wb, ws1, 'Full Log');
 
   // Sheet 2 — Summary by worker + product + phase
   const totals = {};
   entries.forEach(e => {
-    const key = `${e.workers?.name}|||${e.products?.name}|||${e.phases?.name}`;
+    const key = `${e.workers?.name}|||${e.products?.name}|||${e.phases?.mrpe_partno ?? ''}|||${e.phases?.name}`;
     totals[key] = (totals[key] || 0) + e.quantity;
   });
-  const sumRows = [['Worker', 'Product', 'Phase', 'Total Qty']];
+  const sumRows = [['Worker', 'Product', 'Part No', 'Phase', 'Total Qty']];
   Object.entries(totals)
     .sort((a, b) => b[1] - a[1])
     .forEach(([key, qty]) => {
-      const [w, p, ph] = key.split('|||');
-      sumRows.push([w, p, ph, qty]);
+      const [w, p, pno, ph] = key.split('|||');
+      sumRows.push([w, p, pno, ph, qty]);
     });
   const ws2 = XLSX.utils.aoa_to_sheet(sumRows);
-  ws2['!cols'] = [{wch:14},{wch:16},{wch:18},{wch:12}];
+  ws2['!cols'] = [{wch:14},{wch:16},{wch:14},{wch:18},{wch:12}];
   styleXLSXHeader(ws2, 4);
   XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
 
@@ -478,11 +479,12 @@ function exportXLSX() {
     byProduct[pName].push(e);
   });
   Object.entries(byProduct).forEach(([pName, rows]) => {
-    const sheetRows = [['Worker', 'Phase', 'Quantity', 'Date', 'Time']];
+    const sheetRows = [['Worker', 'Part No', 'Phase', 'Quantity', 'Date', 'Time']];
     rows.forEach(e => {
       const dt = new Date(e.created_at);
       sheetRows.push([
         e.workers?.name ?? '',
+        e.phases?.mrpe_partno ?? '',
         e.phases?.name ?? '',
         e.quantity,
         dt.toLocaleDateString('en-GB'),
@@ -491,11 +493,11 @@ function exportXLSX() {
     });
     // Total row
     const total = rows.reduce((s, e) => s + e.quantity, 0);
-    sheetRows.push(['TOTAL', '', total, '', '']);
+    sheetRows.push(['TOTAL', '', '', total, '', '']);
 
     const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-    ws['!cols'] = [{wch:14},{wch:18},{wch:10},{wch:12},{wch:10}];
-    styleXLSXHeader(ws, 5);
+    ws['!cols'] = [{wch:14},{wch:14},{wch:18},{wch:10},{wch:12},{wch:10}];
+    styleXLSXHeader(ws, 6);
     // Safe sheet name (max 31 chars)
     XLSX.utils.book_append_sheet(wb, ws, pName.substring(0, 31));
   });
