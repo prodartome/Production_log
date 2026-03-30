@@ -657,7 +657,12 @@ async function loadStock() {
       throw new Error(json.error ?? `Proxy error ${res.status}`);
     }
 
-    stockData = Array.isArray(json) ? json : (json.data || json.items || Object.values(json));
+    // MRPeasy proxy returns {status, data} where data is a JSON string
+    let parsed = json;
+    if (json.data && typeof json.data === 'string') {
+      try { parsed = JSON.parse(json.data); } catch(e) { parsed = json; }
+    }
+    stockData = Array.isArray(parsed) ? parsed : (parsed.data || parsed.items || Object.values(parsed));
     stockFiltered = [...stockData];
 
     renderStockTable(stockFiltered);
@@ -682,19 +687,23 @@ function renderStockTable(items) {
   }
 
   tbody.innerHTML = items.map(item => {
-    const onHand    = parseFloat(item.on_hand    ?? item.quantity   ?? item.qty ?? 0);
-    const booked    = parseFloat(item.booked     ?? item.reserved   ?? 0);
-    const available = parseFloat(item.available  ?? (onHand - booked));
-    const expected  = parseFloat(item.expected   ?? item.incoming   ?? 0);
-    const avgCost   = parseFloat(item.avg_cost   ?? item.unit_cost  ?? 0);
-    const totalVal  = parseFloat(item.total_cost ?? item.total_value ?? (onHand * avgCost));
+    // MRPeasy field names from /stock/inventory endpoint
+    const onHand    = parseFloat(item.quantity        ?? item.on_hand    ?? 0);
+    const booked    = parseFloat(item.booked          ?? 0);
+    const available = parseFloat(item.available       ?? (onHand - booked));
+    const expected  = parseFloat(item.expected_total  ?? item.expected   ?? 0);
+    const avgCost   = parseFloat(item.avg_cost        ?? 0);
+    const totalVal  = parseFloat(item.total_cost      ?? (onHand * avgCost));
+    const itemCode  = item.product_code ?? item.article_id ?? item.item_id ?? '—';
+    const itemName  = item.product_title ?? item.name ?? item.title ?? '—';
+    const unit      = item.unit ?? '—';
 
     const qtyClass = available <= 0 ? 'stock-qty-zero' : available < 5 ? 'stock-qty-low' : 'stock-qty-ok';
 
     return `<tr>
-      <td class="date-cell">${item.item_id ?? item.article_id ?? item.id ?? '—'}</td>
-      <td class="name-cell" style="white-space:normal;max-width:14rem">${item.name ?? item.title ?? item.description ?? '—'}</td>
-      <td>${item.unit ?? item.unit_of_measure ?? '—'}</td>
+      <td class="date-cell">${itemCode}</td>
+      <td class="name-cell" style="white-space:normal;max-width:14rem">${itemName}</td>
+      <td>${unit}</td>
       <td>${onHand.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
       <td class="date-cell">${booked.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
       <td class="${qtyClass}">${available.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
@@ -708,8 +717,9 @@ function renderStockTable(items) {
 function filterStock(query) {
   const q = query.toLowerCase();
   stockFiltered = stockData.filter(item =>
-    (item.name ?? item.title ?? '').toLowerCase().includes(q) ||
-    String(item.item_id ?? item.id ?? '').includes(q)
+    (item.product_title ?? item.name ?? '').toLowerCase().includes(q) ||
+    (item.product_code ?? '').toLowerCase().includes(q) ||
+    String(item.article_id ?? item.id ?? '').includes(q)
   );
   renderStockTable(stockFiltered);
 }
@@ -719,13 +729,13 @@ function exportStockXLSX() {
 
   const rows = [['Item #','Name','Unit','On Hand','Booked','Available','Expected','Avg Cost','Total Value']];
   stockFiltered.forEach(item => {
-    const onHand  = parseFloat(item.on_hand ?? item.quantity ?? 0);
+    const onHand  = parseFloat(item.quantity ?? item.on_hand ?? 0);
     const booked  = parseFloat(item.booked  ?? 0);
     const avail   = parseFloat(item.available ?? (onHand - booked));
-    const exp     = parseFloat(item.expected ?? 0);
+    const exp     = parseFloat(item.expected_total ?? item.expected ?? 0);
     const cost    = parseFloat(item.avg_cost ?? 0);
     const total   = parseFloat(item.total_cost ?? (onHand * cost));
-    rows.push([item.item_id ?? item.id, item.name ?? item.title, item.unit, onHand, booked, avail, exp, cost, total]);
+    rows.push([item.product_code ?? item.article_id, item.product_title ?? item.name, item.unit, onHand, booked, avail, exp, cost, total]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
