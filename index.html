@@ -280,6 +280,30 @@
   </div>
 </div>
 
+<!-- ── STOCK DETAIL POPUP ── -->
+<div class="stock-popup-overlay" id="stock-popup" onclick="if(event.target===this) closeStockPopup()">
+  <div class="stock-popup-card">
+    <div class="stock-popup-header">
+      <div>
+        <div class="stock-popup-code" id="popup-code"></div>
+        <div class="stock-popup-title" id="popup-title"></div>
+      </div>
+      <button class="stock-popup-close" onclick="closeStockPopup()">✕</button>
+    </div>
+    <img id="popup-img" class="stock-popup-img" src="" alt="Product image" style="display:none">
+    <div class="stock-popup-info">
+      <div class="stock-popup-row">
+        <span class="stock-popup-label">Available</span>
+        <span class="stock-popup-value accent" id="popup-avail"></span>
+      </div>
+      <div class="stock-popup-row">
+        <span class="stock-popup-label">Storage Location</span>
+        <span class="stock-popup-value" id="popup-location">—</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <script src="config.js"></script>
 <script src="app.js"></script>

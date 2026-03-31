@@ -520,6 +520,140 @@ function styleXLSXHeader(ws, cols) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Stock Detail Popup
+// ─────────────────────────────────────────────────────────────
+
+async function openStockDetail(itemJson) {
+  const item = JSON.parse(decodeURIComponent(itemJson));
+
+  // Create popup
+  const overlay = document.createElement('div');
+  overlay.id = 'stock-popup-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;
+    display:flex;align-items:center;justify-content:center;
+  `;
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);
+      border-radius:6px;width:480px;max-width:95vw;max-height:85vh;overflow-y:auto;padding:1.6rem;">
+
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.2rem">
+        <div>
+          <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">
+            ${item.code}
+          </div>
+          <div style="font-size:.85rem;font-weight:700;color:var(--text);line-height:1.3;max-width:320px">
+            ${item.title}
+          </div>
+        </div>
+        <button onclick="document.getElementById('stock-popup-overlay').remove()"
+          style="background:transparent;border:1px solid var(--border);border-radius:4px;
+          color:var(--muted);cursor:pointer;padding:.3rem .7rem;font-size:.8rem;flex-shrink:0;margin-left:.8rem">✕</button>
+      </div>
+
+      <!-- Image -->
+      ${item.icon ? `
+        <div style="margin-bottom:1.2rem;border-radius:4px;overflow:hidden;background:var(--surface2);
+          display:flex;align-items:center;justify-content:center;min-height:160px;">
+          <img src="${item.icon}" alt="${item.title}"
+            style="max-width:100%;max-height:220px;object-fit:contain;"
+            onerror="this.parentElement.style.display='none'">
+        </div>` : ''}
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.2rem">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.7rem .9rem">
+          <div style="font-size:.5rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem">Available</div>
+          <div style="font-size:1.3rem;font-weight:800;font-family:'Barlow Condensed',sans-serif;color:var(--accent)">${item.available}</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.7rem .9rem">
+          <div style="font-size:.5rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem">Vendor Part No</div>
+          <div style="font-size:.75rem;font-family:'DM Mono',monospace;color:var(--text2)">${item.vendorPn}</div>
+        </div>
+      </div>
+
+      <!-- Vendor -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.7rem .9rem;margin-bottom:1.2rem">
+        <div style="font-size:.5rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem">Vendor</div>
+        <div style="font-size:.75rem;color:var(--text2)">${item.vendor}</div>
+      </div>
+
+      <!-- Storage location — loaded from API -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);
+        border-radius:4px;padding:.7rem .9rem" id="stock-location-box">
+        <div style="font-size:.5rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem">
+          Default Storage Location
+        </div>
+        <div id="stock-location-value" style="font-size:.75rem;color:var(--text2);display:flex;align-items:center;gap:.5rem">
+          <div class="spinner" style="width:14px;height:14px;border-width:2px"></div>
+          Loading…
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Load storage location from lots endpoint
+  loadItemLocation(item.article_id);
+}
+
+async function loadItemLocation(articleId) {
+  const locEl = document.getElementById('stock-location-value');
+  if (!locEl) return;
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/mrpeasy-proxy?endpoint=lots&params=article_id%3Deq.${articleId}%26status%3D20`,
+      {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY
+        }
+      }
+    );
+
+    const json = await res.json();
+    let lots = [];
+    if (json.data && typeof json.data === 'string') {
+      try { lots = JSON.parse(json.data); } catch(e) {}
+    }
+
+    if (!Array.isArray(lots) || !lots.length) {
+      locEl.innerHTML = '<span style="color:var(--muted)">No location data</span>';
+      return;
+    }
+
+    // Collect unique locations from all lots
+    const locations = new Set();
+    lots.forEach(lot => {
+      if (lot.locations && lot.locations.length) {
+        lot.locations.forEach(l => {
+          if (l.location) locations.add(l.location);
+        });
+      }
+    });
+
+    if (!locations.size) {
+      locEl.innerHTML = '<span style="color:var(--muted)">No location assigned</span>';
+      return;
+    }
+
+    locEl.innerHTML = [...locations].map(loc =>
+      `<span style="background:var(--surface3);border:1px solid var(--border2);border-radius:3px;
+        padding:.2rem .6rem;font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text)">
+        📦 ${loc}
+      </span>`
+    ).join(' ');
+
+  } catch(e) {
+    if (locEl) locEl.innerHTML = '<span style="color:var(--danger)">Failed to load location</span>';
+  }
+}
+
 // ── Toast ─────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, warn = false) {
@@ -685,7 +819,8 @@ function renderStockTable(items) {
   // Filter: only show items where custom_7453 (Active) is not blank/null
   const filtered = items.filter(item => {
     const active = item.custom_7453;
-    return active !== null && active !== undefined && active !== '' && active !== 'N/A';
+    // Only hide items where Active field is completely blank/null
+    return active !== null && active !== undefined && active !== '';
   });
 
   if (!filtered.length) {
@@ -698,8 +833,17 @@ function renderStockTable(items) {
     const vendor    = item.purchase_terms?.[0]?.vendor_title ?? '—';
     const vendorPn  = item.purchase_terms?.[0]?.vendor_product_code ?? '—';
     const qtyClass  = available <= 0 ? 'stock-qty-zero' : available < 5 ? 'stock-qty-low' : 'stock-qty-ok';
+    const itemJson  = encodeURIComponent(JSON.stringify({
+      article_id: item.article_id,
+      code: item.code,
+      title: item.title,
+      icon: item.icon,
+      available: available,
+      vendor: vendor,
+      vendorPn: vendorPn
+    }));
 
-    return `<tr>
+    return `<tr style="cursor:pointer" onclick="openStockDetail('${itemJson}')" title="Click to see storage location">
       <td class="date-cell">${item.code ?? '—'}</td>
       <td class="name-cell" style="white-space:normal;max-width:18rem">${item.title ?? '—'}</td>
       <td class="${qtyClass}">${available.toLocaleString('en-GB', {maximumFractionDigits:2})}</td>
