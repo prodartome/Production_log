@@ -777,7 +777,7 @@ async function loadStock() {
 
   try {
     // Call Supabase Edge Function proxy (credentials stored in Supabase Secrets)
-    const res = await fetch(MRPEASY_PROXY_URL + '?endpoint=stock/inventory', {
+    const res = await fetch(MRPEASY_PROXY_URL + '?endpoint=items', {
       headers: {
         'apikey':        SUPABASE_KEY,
         'Authorization': 'Bearer ' + SUPABASE_KEY,
