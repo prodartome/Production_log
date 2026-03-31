@@ -607,7 +607,7 @@ async function loadItemLocation(articleId) {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/mrpeasy-proxy?endpoint=lots&params=article_id%3Deq.${articleId}%26status%3D20`,
+      `${SUPABASE_URL}/functions/v1/mrpeasy-proxy?endpoint=lots&params=article_id%3D${articleId}`,
       {
         headers: {
           'apikey': SUPABASE_KEY,
