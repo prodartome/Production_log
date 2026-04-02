@@ -164,8 +164,8 @@
           <th>Description</th>
           <th>Group</th>
           <th>In Stock</th>
-          <th>Available</th>
           <th>Booked</th>
+          <th>Available</th>
         </tr>
       </thead>
       <tbody id="sales-tbody"></tbody>
@@ -335,8 +335,8 @@ function renderTable(items) {
       <td class="name-cell" style="white-space:normal;max-width:20rem">${item.title ?? '—'}</td>
       <td class="date-cell" style="color:var(--text2)">${group}</td>
       <td class="date-cell" style="color:var(--text2)">${inStock.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
-      <td class="avail-cell ${qtyClass}">${available.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
       <td class="date-cell" style="color:var(--text2)">${booked.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
+      <td class="avail-cell ${qtyClass}">${available.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
     </tr>`;
   }).join('');
 }
