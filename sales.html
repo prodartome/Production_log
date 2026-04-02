@@ -300,6 +300,9 @@ function renderTable(items) {
     return;
   }
 
+  // Sort highest available first
+  items.sort((a, b) => parseFloat(b.available ?? 0) - parseFloat(a.available ?? 0));
+
   tbody.innerHTML = items.map(item => {
     const available = parseFloat(item.available ?? item.in_stock ?? 0);
     const qtyClass  = available <= 0 ? 'stock-qty-zero' : available < 3 ? 'stock-qty-low' : 'stock-qty-ok';
