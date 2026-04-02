@@ -163,7 +163,9 @@
           <th>Part No</th>
           <th>Description</th>
           <th>Group</th>
+          <th>In Stock</th>
           <th>Available</th>
+          <th>Booked</th>
         </tr>
       </thead>
       <tbody id="sales-tbody"></tbody>
@@ -314,7 +316,7 @@ function renderTable(items) {
   document.getElementById('item-count').textContent = items.length + ' items';
 
   if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:2rem">No items found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">No items found</td></tr>';
     return;
   }
 
@@ -326,11 +328,15 @@ function renderTable(items) {
     const qtyClass  = available <= 0 ? 'stock-qty-zero' : available < 3 ? 'stock-qty-low' : 'stock-qty-ok';
     const group     = item.group_title ?? '—';
 
+    const booked  = parseFloat(item.booked ?? 0);
+    const inStock  = parseFloat(item.in_stock ?? 0);
     return `<tr>
       <td class="date-cell">${item.code ?? '—'}</td>
       <td class="name-cell" style="white-space:normal;max-width:20rem">${item.title ?? '—'}</td>
       <td class="date-cell" style="color:var(--text2)">${group}</td>
+      <td class="date-cell" style="color:var(--text2)">${inStock.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
       <td class="avail-cell ${qtyClass}">${available.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
+      <td class="date-cell" style="color:var(--text2)">${booked.toLocaleString('en-GB',{maximumFractionDigits:0})}</td>
     </tr>`;
   }).join('');
 }
